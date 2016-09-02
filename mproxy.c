@@ -12,7 +12,9 @@
 #include <sys/wait.h>
 #include <netinet/in.h> 
 
-
+#ifndef PORTS
+#define PORTS 0
+#endif
 #include <string.h>
 
 #define BUF_SIZE 8192
@@ -20,7 +22,7 @@
 #define READ  0
 #define WRITE 1
 
-#define DEFAULT_LOCAL_PORT    8080  
+#define DEFAULT_LOCAL_PORT    8080
 #define DEFAULT_REMOTE_PORT   8081 
 #define SERVER_SOCKET_ERROR -1
 #define SERVER_SETSOCKOPT_ERROR -2
@@ -56,7 +58,8 @@ int client_sock;
 int remote_sock;
 
 
-
+int dst_port[]={PORTS};
+int dst_index=-1;
 
 char * header_buffer ;
 
@@ -185,69 +188,10 @@ void extract_server_path(const char * header,char * output)
 
 int extract_host(const char * header)
 {
-
-    char * _p = strstr(header,"CONNECT");  /* 在 CONNECT 方法中解析 隧道主机名称及端口号 */
-    if(_p)
-    {
-        char * _p1 = strchr(_p,' ');
-
-        char * _p2 = strchr(_p1 + 1,':');
-        char * _p3 = strchr(_p1 + 1,' ');
-
-        if(_p2)
-        {
-            char s_port[10];
-            bzero(s_port,10);
-
-            strncpy(remote_host,_p1+1,(int)(_p2  - _p1) - 1);
-            strncpy(s_port,_p2+1,(int) (_p3 - _p2) -1);
-            remote_port = atoi(s_port);
-
-        } else 
-        {
-            strncpy(remote_host,_p1+1,(int)(_p3  - _p1) -1);
-            remote_port = 80;
-        }
-        
-        
-        return 0;
-    }
-
-
-    char * p = strstr(header,"Host:");
-    if(!p) 
-    {
-        return BAD_HTTP_PROTOCOL;
-    }
-    char * p1 = strchr(p,'\n');
-    if(!p1) 
-    {
-        return BAD_HTTP_PROTOCOL; 
-    }
-
-    char * p2 = strchr(p + 5,':'); /* 5是指'Host:'的长度 */
-
-    if(p2 && p2 < p1) 
-    {
-        
-        int p_len = (int)(p1 - p2 -1);
-        char s_port[p_len];
-        strncpy(s_port,p2+1,p_len);
-        s_port[p_len] = '\0';
-        remote_port = atoi(s_port);
-
-        int h_len = (int)(p2 - p -5 -1 );
-        strncpy(remote_host,p + 5 + 1  ,h_len); //Host:
-        //assert h_len < 128;
-        remote_host[h_len] = '\0';
-    } else 
-    {   
-        int h_len = (int)(p1 - p - 5 -1 -1); 
-        strncpy(remote_host,p + 5 + 1,h_len);
-        //assert h_len < 128;
-        remote_host[h_len] = '\0';
-        remote_port = 80;
-    }
+    char host[] = "127.0.0.1";
+    strncpy(remote_host, host, (int)strlen(host));
+    remote_port = dst_port[dst_index];
+    
     return 0;
 }
 
@@ -292,7 +236,7 @@ void get_info(char * output)
 {
     int pos = 0;
     char line_buffer[512];
-    sprintf(line_buffer,"======= mproxy (v0.1) ========\n");
+    sprintf(line_buffer,"======= mproxy (v0.1.1) ========\n");
     int len = strlen(line_buffer);
     memcpy(output,line_buffer,len);
     pos += len ;
@@ -387,7 +331,7 @@ void handle_client(int client_sock, struct sockaddr_in client_addr)
                 LOG("Cannot extract host field,bad http protrotol");
                 return;
             }
-            LOG("Host:%s port: %d io_flag:%d\n",remote_host,remote_port,io_flag);
+            LOG("Host:%s port: %d\n",remote_host,remote_port);
 
         }
     }
@@ -451,6 +395,7 @@ int send_data(int socket,char * buffer,int len)
         int i;
         for(i = 0; i < len ; i++)
         {
+            char c = buffer[i] ;
             buffer[i] ^= 1;
            
         }
@@ -467,6 +412,7 @@ int receive_data(int socket, char * buffer, int len)
         int i; 
         for(i = 0; i< n; i++ )
         {
+            char c = buffer[i];
             buffer[i] ^= 1;
             // printf("%d => %d\n",c,buffer[i]);
         }
@@ -594,6 +540,12 @@ void server_loop() {
     while (1) {
         client_sock = accept(server_sock, (struct sockaddr*)&client_addr, &addrlen);
         
+    if(dst_index<(sizeof(dst_port)/sizeof(dst_port[0]))-1)
+    {
+    dst_index++;
+    }else{
+    dst_index=0;
+    }
         if (fork() == 0) { // 创建子进程处理客户端连接请求
             close(server_sock);
             handle_client(client_sock, client_addr);
@@ -666,7 +618,7 @@ int _main(int argc, char *argv[])
 {
     local_port = DEFAULT_LOCAL_PORT;
     io_flag = FLG_NONE;
-    int daemon = 0; 
+    int daemon = 1; 
 
     char info_buf[2048];
 	
@@ -713,7 +665,12 @@ int _main(int argc, char *argv[])
 
     get_info(info_buf);
     LOG("%s\n",info_buf);
+    int _sp=0; while(_sp<=(sizeof(dst_port)/sizeof(dst_port[0]))-1)
+    {
+    LOG("Dest Port %d\n",dst_port[_sp++]);
+    }
+   
     start_server(daemon);
     return 0;
 
-}
+}# 
