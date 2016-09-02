@@ -7,8 +7,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#define HTTP_PORT 3330                  /*http代理转接端口*/
-#define DEFAULT_LOCAL_PORT    8080      /*openvpn端口*/
+#define HTTP_PORT 3330                  /*http代理端口*/
+#define DEFAULT_LOCAL_PORT    8080      /*转接目标端口*/
 
 #define BUF_SIZE 8192
 #define SERVER_SOCKET_ERROR -1
@@ -218,7 +218,7 @@ void hand_mproxy_info_req(int sock, char *header) {
 void get_info(char *output) {
     int pos = 0;
     char line_buffer[512];
-    sprintf(line_buffer, "======= mproxy (v0.1.1) ========\n");
+    sprintf(line_buffer, "======= mproxy (https://github.com/dounine/mproxy) ========\n");
     int len = strlen(line_buffer);
     memcpy(output, line_buffer, len);
     pos += len;
@@ -232,7 +232,7 @@ void get_info(char *output) {
         sprintf(line_buffer, "start server on %d and next hop is %s:%d\n", local_port, remote_host, remote_port);
 
     } else {
-        sprintf(line_buffer, "start server on %d\n", local_port);
+        sprintf(line_buffer, "代理程序运行端口为: %d\n", local_port);
     }
 
     len = strlen(line_buffer);
@@ -298,7 +298,7 @@ void handle_client(int client_sock, struct sockaddr_in client_addr) {
                 LOG("Cannot extract host field,bad http protrotol");
                 return;
             }
-            LOG("Host:%s port: %d\n", remote_host, remote_port);
+            /**LOG("Host:%s port: %d\n", remote_host, remote_port);**/
 
         }
     }
@@ -525,7 +525,7 @@ void start_server(int daemon) {
     signal(SIGCHLD, sigchld_handler); // 防止子进程变成僵尸进程
 
     if ((server_sock = create_server_socket(local_port)) < 0) { // start server
-        LOG("Cannot run server on %d\n", local_port);
+        LOG("服务不能启动,端口可能已被占用 %d\n", local_port);
         exit(server_sock);
     }
 
@@ -535,10 +535,10 @@ void start_server(int daemon) {
             server_loop();
         } else if (pid > 0) {
             m_pid = pid;
-            LOG("mporxy pid is: [%d]\n", pid);
+            LOG("mporxy线程id是: [%d]\n", pid);
             close(server_sock);
         } else {
-            LOG("Cannot daemonize\n");
+            LOG("不能打开守卫线程\n");
             exit(pid);
         }
 
@@ -564,10 +564,10 @@ int _main(int argc, char *argv[]) {
     char *p = NULL;
     while (-1 != (opt = getopt(argc, argv, optstrs))) {
         switch (opt) {
-            case 'l':
+            case 'l':/*端口*/
                 local_port = atoi(optarg);
                 break;
-            case 'h':
+            case 'h':/*主机ip地扯*/
                 p = strchr(optarg, ':');
                 if (p) {
                     strncpy(remote_host, optarg, p - optarg);
@@ -577,7 +577,7 @@ int _main(int argc, char *argv[]) {
                     strncpy(remote_host, optarg, strlen(remote_host));
                 }
                 break;
-            case 'd':
+            case 'd':/*是否守卫线程运行*/
                 daemon = 1;
                 break;
             case 'E':
@@ -600,10 +600,9 @@ int _main(int argc, char *argv[]) {
     LOG("%s\n", info_buf);
     int _sp = 0;
     while (_sp <= (sizeof(dst_port) / sizeof(dst_port[0])) - 1) {
-        LOG("Dest Port %d\n", dst_port[_sp++]);
+        LOG("转接目标端口为 %d\n", dst_port[_sp++]);
     }
 
     start_server(daemon);
     return 0;
-
 }
