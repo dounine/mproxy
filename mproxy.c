@@ -248,7 +248,7 @@ const char *get_work_mode() {
 
     if (strlen(remote_host) == 0) {
         if (io_flag == FLG_NONE) {
-            return "start as normal http proxy";
+            return "代理程序开始启动";
         } else if (io_flag == R_C_DEC) {
             return "start as remote forward proxy and do decode data when recevie data";
         }
@@ -282,7 +282,7 @@ void handle_client(int client_sock, struct sockaddr_in client_addr) {
         } else {
             char *p = strstr(header_buffer, "CONNECT"); /* 判断是否是http 隧道请求 */
             if (p) {
-                LOG("receive CONNECT request\n");
+                /**LOG("receive CONNECT request\n");**/
                 is_http_tunnel = 1;
             }
 
@@ -535,10 +535,10 @@ void start_server(int daemon) {
             server_loop();
         } else if (pid > 0) {
             m_pid = pid;
-            LOG("mporxy线程id是: [%d]\n", pid);
+            LOG("mporxy线程id是: %d\n", pid);
             close(server_sock);
         } else {
-            LOG("不能打开守卫线程\n");
+            LOG("不能打开守护线程\n");
             exit(pid);
         }
 
